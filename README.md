@@ -21,6 +21,17 @@ npm start
 
 Giữ nguyên hostname, cổng và trình duyệt để thấy dữ liệu đã lưu. `localhost` và `127.0.0.1`, hoặc hai cổng khác nhau, là các vùng dữ liệu riêng. Dev server dùng cổng 3100 trong kiểm thử, dữ liệu kiểm thử mang tên **Tuấn · Kiểm thử**. Chạy cổng 3000 để bắt đầu sạch.
 
+## Deploy Vercel
+
+`vercel.json` chọn preset Next.js, chạy `npm ci` và `npm run build`, dùng output mặc định của framework. Trong Project Settings:
+
+- Root Directory: `.` nếu kết nối trực tiếp repo learnENG; chọn đúng thư mục chứa `package.json` và `vercel.json` nếu repo có nhiều source.
+- Framework Preset: **Next.js**.
+- Output Directory: tắt Override, không đặt `public` hoặc `out`.
+- Node.js: 22.x hoặc 24.x.
+
+Deploy lại từ revision chứa `vercel.json`. Không dùng preset Other/Static hay chuyển ứng dụng sang static export; route bài học hiện dùng Next.js App Router.
+
 ## Đã có
 
 - Onboarding: hồ sơ, múi giờ IANA, ngày học, 30/45/60 phút, ưu tiên và khó khăn; kiểm tra 6 câu ngữ pháp/từ vựng, đoạn đọc 3 câu và nói tự đánh giá. Có thể bỏ qua.
