@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useLearning } from "./provider";
 import { Button } from "./ui/button";
+import { LearningGuide } from "./learning-guide";
 import { addDays, statistics, reschedule } from "@/lib/learning";
 import { lessons, publishedLessons, weeks } from "@/data/course";
 const labels = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
@@ -35,6 +36,12 @@ export function Dashboard() {
   const finished = Object.values(data.progress).filter(
     (p) => p.completedAt && p.completedAt >= stats.monday,
   ).length;
+  const started =
+    stats.completed > 0 ||
+    Object.values(data.progress).some(
+      (p) => p.activities.length > 0 || Object.keys(p.answers).length > 0,
+    ) ||
+    data.sessions.length > 0;
   return (
     <>
       <div className="page-heading">
@@ -50,6 +57,24 @@ export function Dashboard() {
           {dateLabel(today)} · {data.settings.timezone}
         </span>
       </div>
+      <LearningGuide
+        id="dashboard"
+        initiallyOpen={!started}
+        title={
+          started
+            ? "Tiếp tục từ bước gần nhất của bạn"
+            : "Chưa biết bắt đầu ở đâu? Làm theo 3 bước này."
+        }
+        steps={["Mở bài học", "Bật đồng hồ học", "Làm từng phần & lưu kết quả"]}
+        current={0}
+        hint={
+          started
+            ? "Mở bài tiếp theo. Trong bài sẽ có hướng dẫn đến phần bạn cần làm."
+            : "Bấm “Bắt đầu bài học đầu tiên” để vào học. Bạn chưa cần chọn gì trong menu điều hướng."
+        }
+        action={started ? "Mở bài tiếp theo" : "Bắt đầu bài học đầu tiên"}
+        href={`/lesson/${next.id}`}
+      />
       <div className="dashboard-top">
         <section className="next-lesson">
           <div className="next-copy">
@@ -69,9 +94,9 @@ export function Dashboard() {
                 {next.skill}
               </span>
             </div>
-            <Button asChild>
+            <Button asChild variant="outline">
               <Link href={`/lesson/${next.id}`}>
-                Tiếp tục học
+                {started ? "Tiếp tục học" : "Mở bài học đầu tiên"}
                 <ArrowRight size={17} />
               </Link>
             </Button>

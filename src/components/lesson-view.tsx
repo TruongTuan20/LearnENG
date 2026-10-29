@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,6 +19,7 @@ import {
 import { useLearning } from "./provider";
 import { useStudyTimer } from "@/hooks/use-study-timer";
 import { Button } from "./ui/button";
+import { LearningGuide } from "./learning-guide";
 import { Exercise } from "./exercise";
 import { Recorder, SpeechPlayer, speakingCriteria } from "./audio";
 import { lessons } from "@/data/course";
@@ -38,6 +39,54 @@ export function LessonView({ lesson: l }: { lesson: Lesson }) {
     [message, setMessage] = useState(""),
     [checks, setChecks] = useState<boolean[]>([false, false, false, false]);
   const index = p.section;
+  const contentHeading = useRef<HTMLHeadingElement>(null);
+  const timerStarted = timer.running || timer.elapsed > 0;
+  const missing = requiredActivities.find((id) => !p.activities.includes(id));
+  const activitySections: Record<string, number> = {
+    warmup: 0,
+    phrases: 1,
+    passage: 2,
+    practice: 3,
+    speaking: 4,
+    application: 4,
+    summary: 5,
+  };
+  const activityLabels: Record<string, string> = {
+    warmup: "khởi động",
+    phrases: "cụm từ & mẫu câu",
+    passage: "nghe / đọc",
+    practice: "bài tập",
+    speaking: "luyện nói",
+    application: "áp dụng thực tế",
+    summary: "tổng kết",
+  };
+  const guideStep = p.completedAt
+    ? 4
+    : !timerStarted
+      ? 0
+      : ["warmup", "phrases", "passage"].some(
+            (id) => !p.activities.includes(id),
+          )
+        ? 1
+        : ["practice", "speaking", "application"].some(
+              (id) => !p.activities.includes(id),
+            )
+          ? 2
+          : 3;
+  const targetSection = missing
+    ? activitySections[missing]
+    : canComplete(l, p)
+      ? 5
+      : 3;
+  const guideHint = p.completedAt
+    ? "Bài đã được lưu hoàn thành. Bạn có thể ôn lại hoặc mở bài tiếp theo bên dưới."
+    : !timerStarted
+      ? "Bấm “Bắt đầu buổi học” để bật đồng hồ. Thời gian chỉ được tính sau khi bạn chủ động bắt đầu."
+      : missing
+        ? `Tiếp theo: ${activityLabels[missing]}. Làm nhiệm vụ rồi bấm nút xác nhận ở cuối phần; hướng dẫn sẽ chuyển sang việc tiếp theo.`
+        : canComplete(l, p)
+          ? "Bạn đã đủ các hoạt động. Mở Tổng kết và bấm “Hoàn thành & lưu tiến độ” để kết thúc bài."
+          : "Quay lại bài tập: mỗi câu cần có câu trả lời và đã xem giải thích trước khi hoàn thành.";
   const patch = (changes: Partial<LessonProgress>) =>
     update((d) => ({
       ...d,
@@ -48,6 +97,26 @@ export function LessonView({ lesson: l }: { lesson: Lesson }) {
     }));
   function activity(id: string) {
     patch({ activities: [...new Set([...p.activities, id])] });
+    const remaining = requiredActivities.find(
+      (key) => key !== id && !p.activities.includes(key),
+    );
+    setMessage(
+      remaining
+        ? `Đã lưu phần ${activityLabels[id]}. Tiếp theo: ${activityLabels[remaining]}. Dùng nút bên dưới để chuyển phần.`
+        : "Đã lưu đủ hoạt động. Mở Tổng kết để hoàn thành bài.",
+    );
+  }
+  function openSection(section: number) {
+    patch({ section });
+    requestAnimationFrame(() => {
+      contentHeading.current?.focus({ preventScroll: true });
+      contentHeading.current?.scrollIntoView({
+        block: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
+    });
   }
   function addPhrase(text: string, meaning: string, example: string) {
     const id = `${l.id}:${text.toLowerCase()}`;
@@ -123,6 +192,35 @@ export function LessonView({ lesson: l }: { lesson: Lesson }) {
             : `${p.activities.length}/${requiredActivities.length} hoạt động`}
         </span>
       </div>
+      <LearningGuide
+        id={`lesson-${l.id}`}
+        title={
+          p.completedAt
+            ? "Đã hoàn thành buổi học này"
+            : "Đi từng bước, bạn sẽ biết cần làm gì tiếp theo"
+        }
+        steps={[
+          "Bật đồng hồ",
+          "Khởi động, học & nghe",
+          "Thực hành & áp dụng",
+          "Tổng kết & hoàn thành",
+        ]}
+        current={guideStep}
+        hint={guideHint}
+        action={
+          !timerStarted
+            ? "Bắt đầu buổi học"
+            : `Mở phần ${missing ? activityLabels[missing] : canComplete(l, p) ? "tổng kết" : "bài tập"}`
+        }
+        initiallyOpen={!p.completedAt}
+        onAction={() => {
+          if (!timerStarted) {
+            timer.toggle();
+            return;
+          }
+          openSection(targetSection);
+        }}
+      />
       <div className="lesson-layout">
         <aside className="lesson-toc">
           <div className="card">
@@ -131,7 +229,7 @@ export function LessonView({ lesson: l }: { lesson: Lesson }) {
               <button
                 key={s}
                 className={`toc-item ${i === index ? "active" : ""}`}
-                onClick={() => patch({ section: i })}
+                onClick={() => openSection(i)}
               >
                 <span>{i + 1}</span>
                 {s}
@@ -158,7 +256,9 @@ export function LessonView({ lesson: l }: { lesson: Lesson }) {
         </aside>
         <article className="card lesson-content">
           <div className="section-heading">
-            <h2>{sections[index]}</h2>
+            <h2 ref={contentHeading} tabIndex={-1}>
+              {sections[index]}
+            </h2>
             <span className="badge">
               {index + 1} / {sections.length}
             </span>
@@ -422,17 +522,24 @@ export function LessonView({ lesson: l }: { lesson: Lesson }) {
             <Button
               variant="outline"
               disabled={index === 0}
-              onClick={() => patch({ section: index - 1 })}
+              onClick={() => openSection(index - 1)}
             >
               <ArrowLeft size={16} />
               Phần trước
             </Button>
             <Button
-              variant="outline"
+              className={
+                index < 5 && p.activities.includes(requiredActivities[index])
+                  ? "guide-action"
+                  : undefined
+              }
+              variant={index === 5 ? "outline" : "default"}
               disabled={index === 6}
-              onClick={() => patch({ section: index + 1 })}
+              onClick={() => openSection(index + 1)}
             >
-              Phần tiếp theo
+              {index < 6
+                ? `Tiếp theo: ${sections[index + 1]}`
+                : "Đã ở phần cuối"}
               <ArrowRight size={16} />
             </Button>
           </div>
